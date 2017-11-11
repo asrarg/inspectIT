@@ -12,6 +12,8 @@ import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
 import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Constructor;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -21,9 +23,14 @@ import java.security.CodeSource;
 import java.security.PermissionCollection;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Logger;
@@ -46,6 +53,7 @@ import rocks.inspectit.agent.java.util.ClassLoadingUtil;
  * @author Patrice Bouillet
  * @author Marius Oehler
  */
+
 public class JavaAgent implements ClassFileTransformer {
 
 	/**
@@ -83,8 +91,48 @@ public class JavaAgent implements ClassFileTransformer {
 	 *            The instrumentation instance is used to add a transformer which will do the actual
 	 *            instrumentation.
 	 */
+
+	/** This is a method for MBean ***************** MY EDIT ****************** **/
+	public static void DumpThreadsMBean() {   //Q:
+		final StringBuilder threadString = new StringBuilder();
+		final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+		final ThreadInfo[] infos = threadMXBean.getThreadInfo(threadMXBean.getAllThreadIds(), Integer.MAX_VALUE);
+
+		// to be able to exclude daemon thread, getting all threads and ids
+		Map threads = Thread.getAllStackTraces();
+		Map<Long, Thread> threadIds = new HashMap();
+		for (Iterator itr = threads.keySet().iterator(); itr.hasNext();) {
+			Thread th = (Thread) itr.next();
+			threadIds.put(th.getId(), th);
+		}
+
+		for (ThreadInfo info : infos) {
+			// excluding all daemon threads
+			if (threadIds.get(info.getThreadId()).isDaemon() == false) {
+				// thread name
+				threadString.append("Thread \"");
+				threadString.append(info.getThreadName());
+				threadString.append("\" ");
+				// thread state
+				final Thread.State _state = info.getThreadState();
+				threadString.append(_state);
+				// stack trace for it
+				final StackTraceElement[] stackTraceElements = info.getStackTrace();
+				for (final StackTraceElement stackTraceElement : stackTraceElements) {
+					threadString.append("\n    at ");
+					threadString.append(stackTraceElement);
+				}
+				threadString.append("\n\n");
+			}
+			System.out.println(threadString.toString());
+		}
+	}
+
+	/** This is a method for MBean ***************** END OF MY EDIT ****************** **/
+
 	public static void premain(String agentArgs, Instrumentation inst) {
 		instrumentation = inst;
+
 
 		LOGGER.info("inspectIT Agent: Starting initialization...");
 		checkForCorrectSetup();
@@ -106,6 +154,8 @@ public class JavaAgent implements ClassFileTransformer {
 			// we can reference the Agent now here because it should have been added to the
 			// bootclasspath and thus available from anywhere in the application
 			Agent.agent = (IAgent) realAgent;
+
+
 
 			// we need to preload some classes due to the minimal possibility of classcircularity
 			// errors etc.
@@ -130,6 +180,20 @@ public class JavaAgent implements ClassFileTransformer {
 			LOGGER.severe("Something unexpected happened while trying to initialize the Agent, aborting!");
 			e.printStackTrace(); // NOPMD
 		}
+		// my edit *********************************
+		// Q: why did it work with timer and not with creating a new thread inside the premain
+		System.out.println("**********************Called premain**********************");
+		TimerTask task = new TimerTask() {
+			@Override
+			public void run() {
+				DumpThreadsMBean();
+			}
+		};
+		Timer timer = new Timer();
+		timer.scheduleAtFixedRate(task, 1000, 1000);
+
+		// END my edit *********************************
+
 	}
 
 	/**
