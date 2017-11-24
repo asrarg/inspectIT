@@ -49,11 +49,6 @@
 			<type>2</type>
 			<locationURI>config</locationURI>
 		</link>
-		<link>
-			<name>plugin_customization.ini</name>
-			<type>1</type>
-			<locationURI>pluginini</locationURI>
-		</link>
 	</linkedResources>
 	<variableList>
 		<variable>
