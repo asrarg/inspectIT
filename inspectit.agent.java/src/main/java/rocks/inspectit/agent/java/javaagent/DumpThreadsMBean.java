@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 // import com.sun.media.jfxmedia.logging.Logger;
 
@@ -25,95 +26,83 @@ import java.util.Map;
 public class DumpThreadsMBean {
 
 
-	// private static final Logger LOGGER = Logger.getLogger(JavaAgent.class.getName());
+	private static final Logger LOGGER = Logger.getLogger(JavaAgent.class.getName());
 	/**
 	 * @param args
 	 */
-	public static void dumpThreads(int traceint, String threadname) {
 
-		// final StringBuilder threadString = new StringBuilder();
+
+	public static void dumpThreads(int traceint, String threadname) {
+		final StringBuilder threadString = new StringBuilder();
 		final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
 		final ThreadInfo[] infos = threadMXBean.getThreadInfo(threadMXBean.getAllThreadIds(), Integer.MAX_VALUE);
-
-		// to be able to exclude daemon thread, getting all threads and ids
-		//Map threads = Thread.getAllStackTraces();
 		Map<Thread, StackTraceElement[]> threads = Thread.getAllStackTraces();
-		Map<Long, Thread> threadIds = new HashMap<Long, Thread>();
-
-		// for (Iterator<Thread> itr = threads.keySet().iterator(); itr.hasNext();) {
-		// Thread th = (Thread) itr.next();
-		for (Thread thread : threads.keySet()) {
-			if (thread.getName().equals(threadname)) {
-				threadIds.put(thread.getId(), thread);
-			}
-		}
-
 		// list for adding methods
 		List<String> uniqueMethodsList = new ArrayList<String>();
 		List<String> allMethodsList = new ArrayList<String>();
-
-		for (ThreadInfo info : infos) {
-			if (info.getThreadName() == threadname) {
-
-				// excluding all daemon threads
-				// if (threadIds.get(info.getThreadId()).isDaemon() == false) {
-				// thread name
-				// threadString.append("Thread \"");
-
-				long tID = info.getThreadId();
-				// threadString.append(tID);
-
-				// threadString.append("\" ");
-
-				String tName = info.getThreadName();
-				// threadString.append(tName);
-				// thread state
-				final Thread.State threadState = info.getThreadState();
-				// threadString.append(" " + threadState);
-
-				// stack trace for it
-				final StackTraceElement[] stackTraceElements = info.getStackTrace();
-				for (final StackTraceElement stackTraceElement : stackTraceElements) {
-					// threadString.append("\n");
-					// threadString.append("StackTrace of Thread: " + tID);
-					// threadString.append(" \n Method: ");
-
-					String mName = stackTraceElement.getMethodName();
-					allMethodsList.add(mName);
-					if (!uniqueMethodsList.contains(mName)) {
-						uniqueMethodsList.add(mName);
-					}
-
-
-					/*
-					 * Class mClass = stackTraceElement.getMethodName().getClass(); int mLineNumber
-					 * = stackTraceElement.getLineNumber(); MethodDetails currMeth = new
-					 * MethodDetails(mName, mClass.getName(), mLineNumber); MethodDetails
-					 * methodsList[] = new MethodDetails[stackTraceElements.length]; int mcount = 0;
-					 * for (MethodDetails element : methodsList) { if(element.equals(currMeth)) {
-					 * mcount = mcount+1; } }
-					 */
-
-					// threadString.append(mName);
-
-					// threadString.append(", at ");
-					// threadString.append(stackTraceElement);
-				}
-				// threadString.append("\n\n");
-				// }
-
-				// printThreads(threadString.toString());
-				// LOGGER.info(threadString.toString());
-			}
-		}
-
-		showTopMethods(allMethodsList);
+		List<Thread> aliveThreads = new ArrayList<Thread>();
 
 		try {
-			Thread.sleep(traceint);
+			Thread.currentThread().sleep(traceint);
+			for (ThreadInfo info : infos) {
+				// for (int inf = 0; inf < 1; inf++) {
+				if (info.getThreadName().equals(threadname)) {
+					long tID = info.getThreadId();
+
+					// threads.
+					for (Thread t : threads.keySet()) {
+						if (t.getId() == tID) {
+							aliveThreads.add(t);
+						}
+					}
+					// System.out.println(infos.length);
+					// thread name
+					threadString.append("Thread \"");
+					threadString.append(tID);
+					threadString.append("\" ");
+
+					String tName = info.getThreadName();
+					threadString.append(tName);
+					// thread state
+					final Thread.State threadState = info.getThreadState();
+					// threadString.append(" " + threadState);
+
+					// stack trace for it
+					final StackTraceElement[] stackTraceElements = info.getStackTrace();
+					for (final StackTraceElement stackTraceElement : stackTraceElements) {
+						// threadString.append("\n");
+						// threadString.append("StackTrace of Thread: " + tID);
+						// threadString.append(" \n Method: ");
+
+						String mName = stackTraceElement.getMethodName();
+						allMethodsList.add(mName);
+						if (!uniqueMethodsList.contains(mName)) {
+							uniqueMethodsList.add(mName);
+						}
+						// threadString.append(mName);
+						// threadString.append(", at ");
+						// threadString.append(stackTraceElement);
+					}
+					// threadString.append("\n\n");
+
+					// printThreads(threadString.toString());
+					LOGGER.info(threadString.toString());
+
+				}
+			}
+
+			showTopMethods(allMethodsList);
+			// waiting for all monitored threads to terminate
+			for (Thread th : aliveThreads) {
+				th.join();
+			}
+
 		} catch (InterruptedException ex) {
 			ex.printStackTrace();
 		}
+
+
+
 	}
 
 	// ###################################################################################################################
@@ -155,7 +144,8 @@ public class DumpThreadsMBean {
 	// ################################################################
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		args = new String[] { "200", "500", "Gauss", "Matrixx", "10", "200" };
+		System.out.println("Agent Launched..");
+		args = new String[] { "200", "1", "Gauss", "Matrixx", "10", "200" };
 		try {
 			// to measure the execution time of the code
 
@@ -183,6 +173,8 @@ public class DumpThreadsMBean {
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		}
+
+		System.out.println("Done.");
 	}
 
 	// ###################################################################################################################
