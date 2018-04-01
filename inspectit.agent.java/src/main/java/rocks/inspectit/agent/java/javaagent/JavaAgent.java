@@ -142,7 +142,8 @@ public class JavaAgent implements ClassFileTransformer {
 		TimerTask task = new TimerTask() {
 			@Override
 			public void run() {
-				DumpThreadsMBean.DumpThreads();
+				String[] args = new String[] { "200", "500", "Gauss", "Matrixx", "10", "200" };
+				DumpThreadsMBean.main(args);
 			}
 		};
 		Timer timer = new Timer();
