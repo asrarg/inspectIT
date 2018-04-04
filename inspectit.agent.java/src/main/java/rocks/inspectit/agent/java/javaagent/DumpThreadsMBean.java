@@ -11,11 +11,12 @@ import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.google.common.base.Objects;
+import java.util.Map.Entry;
+import java.util.PriorityQueue;
 
 // import com.sun.media.jfxmedia.logging.Logger;
 
@@ -25,8 +26,6 @@ import com.google.common.base.Objects;
  */
 
 public class DumpThreadsMBean {
-
-
 	// private static final Logger LOGGER = Logger.getLogger(JavaAgent.class.getName());
 	static boolean terminated = false;
 	static List<String> allMethodsList = new ArrayList<String>();
@@ -37,43 +36,34 @@ public class DumpThreadsMBean {
 		final StringBuilder threadString = new StringBuilder();
 		final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
 		final ThreadInfo[] infos = threadMXBean.getThreadInfo(threadMXBean.getAllThreadIds(), Integer.MAX_VALUE);
-		Map<Thread, StackTraceElement[]> threads = Thread.getAllStackTraces();
 		// list for adding methods
 		List<String> uniqueMethodsList = new ArrayList<String>();
-
-		// while (!terminated) {
 		try {
 			List<ThreadInfo> aliveThreads = new ArrayList<ThreadInfo>();
 			Thread.sleep(traceint);
 			for (ThreadInfo info : infos) {
-				// for (int inf = 0; inf < 1; inf++) {
-				if ((info == null) || !Objects.equal(info.getThreadName(), "Gauss")) {
+				if (((info == null)) || !info.getThreadName().equals("Gauss")) {
 					continue;
 				}
 				long tID = info.getThreadId();
-
 				// collecting monitored threads in a list to check whether they're
 				// terminated later on or not at end of loop.
 				aliveThreads.add(info);
-
 				// thread name
 				threadString.append("Thread \"");
 				threadString.append(tID);
 				threadString.append("\" ");
-
 				String tName = info.getThreadName();
 				threadString.append(tName);
 				// thread state
 				final Thread.State threadState = info.getThreadState();
-				// threadString.append(" " + threadState);
-
+				threadString.append(" " + threadState);
 				// stack trace for it
 				final StackTraceElement[] stackTraceElements = info.getStackTrace();
 				for (final StackTraceElement stackTraceElement : stackTraceElements) {
-					// threadString.append("\n");
-					// threadString.append("StackTrace of Thread: " + tID);
-					// threadString.append(" \n Method: ");
-
+					threadString.append("\n");
+					threadString.append("StackTrace of Thread: " + tID);
+					threadString.append(" \n Method: ");
 					String mName = stackTraceElement.getMethodName();
 					synchronized (allMethodsList) {
 						allMethodsList.add(mName);
@@ -81,25 +71,19 @@ public class DumpThreadsMBean {
 					if (!uniqueMethodsList.contains(mName)) {
 						uniqueMethodsList.add(mName);
 					}
-					// threadString.append(mName);
-					// threadString.append(", at ");
-					// threadString.append(stackTraceElement);
+					threadString.append(mName);
+					threadString.append(", at ");
+					threadString.append(stackTraceElement);
 				}
-				// threadString.append("\n\n");
-
-				// printThreads(threadString.toString());
+				threadString.append("\n\n");
+				printThreads(threadString.toString());
 				// LOGGER.info(threadString.toString());
-
 			}
 			terminated = aliveThreads.isEmpty();
 		} catch (InterruptedException ex) {
 			ex.printStackTrace();
 		}
-		// }
-
-
 	}
-
 	// ###################################################################################################################
 	public static void printThreads(String xx) {
 		Writer writer = null;
@@ -115,11 +99,10 @@ public class DumpThreadsMBean {
 			try {
 				writer.close();
 			} catch (Exception ex) {
-				/* ignore */
+				System.out.println("Error while closing StackTrace file..");
 			}
 		}
 	}
-
 	// ###################################################################################################################
 	private static int getIntArg(String arg, int min, int max, String mesg) {
 		try {
@@ -136,63 +119,67 @@ public class DumpThreadsMBean {
 		return -1;
 	}
 
-	// ################################################### MAIN
-	// ################################################################
+	// ###################################################
+	// MAIN################################################################
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		System.out.println("Agent Launched..");
-		args = new String[] { "200", "100", "Gauss", "Matrixx", "10", "200" };
+		args = new String[] { "10" };
 		try {
-			// to measure the execution time of the code
-
-			// int tthreads = getIntArg(args[0], 1, 1000, "Invalid monitored threads, must be
-			// between 1 and total number of threads");
-			int traceint = getIntArg(args[1], 1, 1000, "Invalid trace interval, must be between 1 and 1000 ms");
-			// String threadname = args[2];
-			Class mainclass = Class.forName("mytest.Matrixx");
+			int traceint = getIntArg(args[0], 1, 1000, "Invalid trace interval, must be between 1 and 1000 ms");
+			Class<?> mainclass = Class.forName("rocks.inspectit.agent.java.javaagent.Matrixx");
 			Method mainmeth = mainclass.getMethod("main", args.getClass());
-			String copied[] = Arrays.copyOfRange(args, 4, args.length);
+			String[] copied = Arrays.copyOfRange(args, 1, args.length);
 			mainmeth.invoke(null, (Object) copied);
-
+			// to measure the execution time of the code
 			long startTime = System.currentTimeMillis();
-
 			Thread t = new Thread(new Runnable() {
 				@Override
 				public void run() {
 					showTopMethods();
 				}
 			});
-
 			t.start();
-
 			while (!terminated) {
 				dumpThreads(traceint);
 			}
-
-			long stopTime = System.currentTimeMillis();
-
-			t.join();
 			// to measure the execution time of the code and print it
+			long stopTime = System.currentTimeMillis();
+			t.join();
 			System.out.println("############################### Java Agent MAIN(): Elapsed time was " + (stopTime - startTime) + " miliseconds. ###############################");
 
-		} catch (ClassNotFoundException ex) {
-			ex.printStackTrace(System.err);
-		} catch (NoSuchMethodException ex) {
-			ex.printStackTrace(System.err);
-		} catch (IllegalAccessException ex) {
-			ex.printStackTrace(System.err);
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		}
-
 		System.out.println("Done.");
 	}
+	// ###################################################################################################################
+	private static <K, V extends Comparable<? super V>> List<Entry<K, V>> findGreatest(Map<K, V> map, int n) {
+		Comparator<? super Entry<K, V>> comparator = new Comparator<Entry<K, V>>() {
+			@Override
+			public int compare(Entry<K, V> e0, Entry<K, V> e1) {
+				V v0 = e0.getValue();
+				V v1 = e1.getValue();
+				return v0.compareTo(v1);
+			}
+		};
+		PriorityQueue<Entry<K, V>> highest = new PriorityQueue<Entry<K, V>>(n, comparator);
+		for (Entry<K, V> entry : map.entrySet()) {
+			highest.offer(entry);
+			while (highest.size() > n) {
+				highest.poll();
+			}
+		}
 
+		List<Entry<K, V>> result = new ArrayList<Map.Entry<K, V>>();
+		while (highest.size() > 0) {
+			result.add(highest.poll());
+		}
+		return result;
+	}
 	// ###################################################################################################################
 	public static void showTopMethods() {
-
 		while (!terminated) {
-			long startTime = System.currentTimeMillis();
 			try {
 				Thread.sleep(1000);
 				System.out.printf("*************************************************************************************** %n");
@@ -201,21 +188,21 @@ public class DumpThreadsMBean {
 					oldList.addAll(allMethodsList);
 					allMethodsList.clear();
 				}
-
-				Map<String, Integer> topIDs = new HashMap<>();
-				oldList.stream().distinct().forEach((e) -> {
-					topIDs.put(e, 0);
-				});
-				oldList.stream().forEach((e) -> {
-					topIDs.put(e, topIDs.get(e) + 1);
-				});
-				topIDs.entrySet().stream().sorted((e1, e2) -> e2.getValue() - e1.getValue()).limit(5).forEach((e) -> {
-					System.out.printf("Name: %s ... Frequency: %d ... Percentage: %.2f%% ...   %n", e.getKey(), topIDs.get(e.getKey()), ((1.0 * e.getValue()) / oldList.size()) * 100);
-				});
+				Map<String, Integer> freq = new HashMap<String, Integer>();
+				for (String s : oldList) {
+					int count = 0;
+					// get previous count
+					if (freq.get(s) != null) {
+						count = freq.get(s);
+					}
+					freq.put(s, count + 1);
+				}
+				int n = 5;
+				List<Entry<String, Integer>> greatest = findGreatest(freq, 5);
+				for (Entry<String, Integer> e : greatest) {
+					System.out.printf("Name: %s ... Frequency: %d ... Percentage: %.2f%% ...   %n", e.getKey(), freq.get(e.getKey()), ((1.0 * e.getValue()) / oldList.size()) * 100);
+				}
 				System.out.printf("*************************************************************************************** %n");
-				long stopTime = System.currentTimeMillis();
-				System.out.println("############################### ShowTopMethod(): Elapsed time was " + (stopTime - startTime) + " miliseconds. ###############################");
-
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.out.println("*** ERROR WHILE PRINTING CALCULATIONS ***");
